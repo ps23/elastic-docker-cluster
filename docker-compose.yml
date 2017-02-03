@@ -1,0 +1,68 @@
+version: '3'
+     
+volumes:
+    elastic:
+
+networks:
+    back:
+        driver: bridge
+ 
+services:
+  
+  elastic:
+    image: ${EDC_DOCKER_REPO}/edc/storage/elastic:5.2.0
+    build: 
+      context: ./elastic
+      dockerfile: Dockerfile-cluster
+    container_name: edc_elastic
+    command: "elasticsearch -E node.master=true -E node.data=false -E node.ingest=false -E node.name=elastic"
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    networks:
+      - back
+    volumes:
+      - elastic:/usr/share/elasticsearch/data
+
+  ingest: 
+    image: ${EDC_DOCKER_REPO}/edc/storage/elastic:5.2.0
+    build: 
+      context: ./elastic
+      dockerfile: Dockerfile-cluster
+    container_name: edc_ingest
+    command: "elasticsearch -E node.master=false -E node.data=false -E node.ingest=true -E node.name=ingest"
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - 9200:9200
+      - 9300:9300
+    networks:
+      - back
+    links:
+      - elastic:elastic
+
+  data: 
+    image: ${EDC_DOCKER_REPO}/edc/storage/elastic:5.2.0
+    build: 
+      context: ./elastic
+      dockerfile: Dockerfile-cluster
+    container_name: edc_data
+    command: "elasticsearch -E node.master=false -E node.data=true -E node.ingest=false -E node.name=data"
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    networks:
+      - back
+    links:
+      - elastic:elastic
+  
+  kibana:
+    image: ${EDC_DOCKER_REPO}/edc/storage/kibana:5.2.0
+    build: ./kibana
+    container_name: edc_kibana
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elastic
+    networks:
+      - back
+    environment:
+     ELASTICSEARCH_URL: http://edc_ingest:9200
